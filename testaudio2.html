@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset=utf-8 />
+<title>Web Audio API</title>
+</head>
+<body>
+  <p class="play">Play</p>
+  <p class="stop">Stop</p>
+</body>
+<script>
+(function() {
+    /** Helpers **/
+    function makeOsc(context, freq, type) {
+        var osc = context.createOscillator();
+        osc.frequency.value = freq;
+        osc.type = type;
+        return osc;
+    }
+
+    function makeGain(context, value) {
+        var gain = context.createGain();
+        gain.gain.value = value;
+        return gain;
+    }
+
+    var DelayNode = function(context, delayTime, decayValue, cleanVolume, wetVolume) {
+        this.input = context.createGain();
+        var output = context.createGain();
+
+        var delay = context.createDelay();
+        delay.delayTime.value = delayTime;
+
+        var feedback = context.createGain();
+        feedback.gain.value = decayValue;
+
+        var clean = context.createGain();
+        clean.gain.value = decayValue;
+
+        this.input.connect(delay);
+        this.input.connect(clean);
+        delay.connect(feedback);
+        feedback.connect(delay);
+        clean.connect(output);
+        delay.connect(output);
+
+        this.connect = function(target){
+           output.connect(target);
+        };
+
+        this.setDelay = function(value) {
+            delay.delayTime.value = value;
+        };
+
+        this.setFeedback:function(value) {
+            feedback.gain.value = value;
+        };
+    }
+
+    /***********/
+
+
+    var context, soundSource;
+
+    // Step 1 - Initialise the Audio Context
+    // There can be only one!
+
+    function init() {
+        if (typeof AudioContext !== "undefined") {
+            context = new AudioContext();
+        } else if (typeof webkitAudioContext !== "undefined") {
+            context = new webkitAudioContext();
+        } else {
+            throw new Error('AudioContext not supported. :(');
+        }
+
+    }
+
+    // Step 2: Load our Sound using XHR
+
+    function startSound() {
+        audioGraph();
+    }
+    // Finally: tell the source when to start
+
+    function playSound() {
+        // play the source now
+        soundSource.start(context.currentTime);
+        lfo.start(context.currentTime);
+    }
+
+    function stopSound() {
+        // stop the source now
+        soundSource.stop(context.currentTime);
+        lfo.stop(context.currentTime);
+    }
+
+    function mouseMoved(mousemove) {
+        delay.setDelay(mousemove.clientX/(window.innerWidth+1.0) * 3);
+        delay.setFeedback(mousemove.clientY/(window.innerHeight+1.0));
+    }
+
+
+    // Events for the play/stop bottons
+    document.querySelector('.play').addEventListener('click', startSound);
+    document.querySelector('.stop').addEventListener('click', stopSound);
+
+
+    // This is the code we are interested in:
+
+
+    function audioGraph() {
+        soundSource = makeOsc(context, 440, 'triangle');
+        lfo = makeOsc(context, 1, 'triangle');
+        lfoGain = makeGain(context, 100);
+        lfo.connect(lfoGain);
+        lfoGain.connect(soundSource.frequency);
+        delay = new DelayNode(context, 0.5, 0.8, 0.5, 0.5);
+        window.addEventListener('mousemove', mouseMoved);
+
+
+        volumeNode = makeGain(context, 0.1);
+        
+        // Wiring
+        soundSource.connect(delay.input);
+        delay.output.connect(volumeNode);
+        volumeNode.connect(context.destination);
+        
+        // Finally
+        playSound(soundSource);
+    }
+
+
+    init();
+    
+
+}());
+</script>
+</html>
+
